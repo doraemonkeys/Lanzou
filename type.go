@@ -1,5 +1,7 @@
 package lanzou
 
+//可能会因为蓝奏云的变化而发生错误
+
 type FileDirectUrl struct {
 	//Zt  int    `json:"zt"`
 	Dom string `json:"dom"`
@@ -7,7 +9,6 @@ type FileDirectUrl struct {
 	//Inf int    `json:"inf"`
 }
 
-//可能会因为蓝奏云的变化而发生错误
 type LanzouyPostRes struct {
 	//Zt   int    `json:"zt"`
 	Info string `json:"info"`

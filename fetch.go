@@ -15,7 +15,7 @@ import (
 )
 
 //从蓝奏云获取指定文件的下载直链
-func GetDownloadUrlFromLanxou(homeUrl string, pwd string, filename string) (string, error) {
+func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error) {
 	content, err := accessHomepage(homeUrl)
 	if err != nil {
 		return "", err

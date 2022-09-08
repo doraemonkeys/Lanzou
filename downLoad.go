@@ -8,7 +8,7 @@ import (
 )
 
 //filename为文件存储的路径(可省略)和文件名,记得校验md5
-func LanzouDownload(url string, filename string) error {
+func Download(url string, filename string) error {
 	request, err := http.NewRequest("GET", url, nil)
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36 Edg/104.0.1293.70")
 	request.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
