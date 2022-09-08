@@ -1,4 +1,4 @@
-module github.com/Doraemonkeys/Lanzou
+module github.com/Doraemonkeys/lanzou
 
 go 1.18
 
