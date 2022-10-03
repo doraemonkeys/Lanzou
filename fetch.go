@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,7 +14,7 @@ import (
 	"github.com/dlclark/regexp2"
 )
 
-//从蓝奏云获取指定文件的下载直链
+// 从蓝奏云获取指定文件的下载直链
 func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error) {
 	content, err := accessHomepage(homeUrl)
 	if err != nil {
@@ -50,7 +50,32 @@ func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error)
 		return "", err
 	}
 	postUrl2 := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + urlpath2
-	return getDirectURL(postUrl2, filePage2Url, parames)
+	endUrl, err := getDirectURL(postUrl2, filePage2Url, parames)
+	if err != nil {
+		return "", err
+	}
+	endUrl2, err := getRedirectUrl(endUrl)
+	if err != nil {
+		return endUrl, nil
+	}
+	return endUrl2, nil
+}
+
+// 获取重定向后的url
+func getRedirectUrl(url string) (string, error) {
+	request, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36 Edg/104.0.1293.70")
+	request.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+	request.Header.Set("accept-language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("获取重定向后的url失败,err:%w", err)
+	}
+	defer resp.Body.Close()
+	return resp.Request.URL.String(), nil
 }
 
 func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string) (LanzouyPostRes, error) {
@@ -68,7 +93,7 @@ func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, fil
 		return LanzouyPostRes{}, err
 	}
 	defer resp.Body.Close()
-	bodycontent, err := ioutil.ReadAll(resp.Body)
+	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return LanzouyPostRes{}, err
 	}
@@ -86,7 +111,7 @@ func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, fil
 	return filedata, nil
 }
 
-//对Unicode进行转码
+// 对Unicode进行转码
 func unicodeToUtf8(str []byte) []byte {
 	reg := regexp.MustCompile(`\\u([0-9a-fA-F]{4})`)
 	return reg.ReplaceAllFunc(str, func(s []byte) []byte {
@@ -123,7 +148,7 @@ func accessFilePageToGetFileSrc(fileUrl string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	bodycontent, err := ioutil.ReadAll(resp.Body)
+	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -152,7 +177,7 @@ func getDirectURL(postUrl string, referer string, parames url.Values) (string, e
 		return "", err
 	}
 	defer resp.Body.Close()
-	bodycontent, err := ioutil.ReadAll(resp.Body)
+	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -245,7 +270,7 @@ func accessFilePage2(filePage2Url string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	bodycontent, err := ioutil.ReadAll(resp.Body)
+	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -333,7 +358,7 @@ func accessHomepage(url string) (string, error) {
 		return "", fmt.Errorf("访问url失败,err:%w", err)
 	}
 	defer resp.Body.Close()
-	bodycontent, err := ioutil.ReadAll(resp.Body)
+	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("读取网页内容失败,err:%w", err)
 	}
