@@ -14,7 +14,7 @@ import (
 	"github.com/dlclark/regexp2"
 )
 
-// 从蓝奏云获取指定文件的下载直链
+// 从蓝奏云获取指定文件的下载直链,若链接为文件夹,则filename必填，否则不知道下载哪个文件
 func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error) {
 	content, err := accessHomepage(homeUrl)
 	if err != nil {
@@ -26,34 +26,44 @@ func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error)
 	}
 	if parame.Has("pwd") {
 		parame.Set("pwd", pwd)
+		IsSingleFile = false
+	} else if parame.Has("p") {
+		parame.Set("p", pwd)
+		IsSingleFile = true
 	}
 	postUrl := homeUrl[:strings.LastIndexByte(homeUrl, '/')] + urlpath
-	filedata, err := postPwdToGetJsonData(homeUrl, postUrl, parame, filename)
+	filedata_folder, filedata_file, err := postPwdToGetJsonData(homeUrl, postUrl, parame, filename)
 	if err != nil {
 		return "", err
 	}
-	fileUrl, err := findFile(filedata, filename, homeUrl)
-	if err != nil {
-		return "", err
+	endUrl := ""
+	if IsSingleFile {
+		endUrl = filedata_file.Dom + "/file/" + filedata_file.URL
+	} else {
+		fileUrl, err := findFile(filedata_folder, filename, homeUrl)
+		if err != nil {
+			return "", err
+		}
+		fileSrc, err := accessFilePageToGetFileSrc(fileUrl)
+		if err != nil {
+			return "", err
+		}
+		filePage2Url := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + fileSrc
+		content, err = accessFilePage2(filePage2Url)
+		if err != nil {
+			return "", err
+		}
+		parames, urlpath2, err := matchFilePageData(content)
+		if err != nil {
+			return "", err
+		}
+		postUrl2 := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + urlpath2
+		endUrl, err = getDirectURL(postUrl2, filePage2Url, parames)
+		if err != nil {
+			return "", err
+		}
 	}
-	fileSrc, err := accessFilePageToGetFileSrc(fileUrl)
-	if err != nil {
-		return "", err
-	}
-	filePage2Url := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + fileSrc
-	content, err = accessFilePage2(filePage2Url)
-	if err != nil {
-		return "", err
-	}
-	parames, urlpath2, err := matchFilePageData(content)
-	if err != nil {
-		return "", err
-	}
-	postUrl2 := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + urlpath2
-	endUrl, err := getDirectURL(postUrl2, filePage2Url, parames)
-	if err != nil {
-		return "", err
-	}
+	//尝试获取重定向后的url
 	endUrl2, err := getRedirectUrl(endUrl)
 	if err != nil {
 		return endUrl, nil
@@ -78,7 +88,7 @@ func getRedirectUrl(url string) (string, error) {
 	return resp.Request.URL.String(), nil
 }
 
-func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string) (LanzouyPostRes, error) {
+func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string) (LanzouyPostRes, LanzouyPostRes2, error) {
 	data := parame.Encode()
 	request, err := http.NewRequest("POST", postUrl, strings.NewReader(data))
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36")
@@ -86,16 +96,30 @@ func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, fil
 	request.Header.Set("content-type", `application/x-www-form-urlencoded`)
 	request.Header.Set("accept", `application/json, text/javascript, */*`)
 	if err != nil {
-		return LanzouyPostRes{}, err
+		return LanzouyPostRes{}, LanzouyPostRes2{}, err
 	}
 	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return LanzouyPostRes{}, err
+		return LanzouyPostRes{}, LanzouyPostRes2{}, err
 	}
 	defer resp.Body.Close()
 	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return LanzouyPostRes{}, err
+		return LanzouyPostRes{}, LanzouyPostRes2{}, err
+	}
+	if IsSingleFile {
+		var filedata = LanzouyPostRes2{}
+		err = json.Unmarshal(bodycontent, &filedata)
+		if err != nil {
+			bodycontent = unicodeToUtf8(bodycontent)
+			re := regexp.MustCompile(`"inf"[ ]*:"([^"]*)"`)
+			info := re.FindStringSubmatch(string(bodycontent))
+			if len(info) > 0 {
+				return LanzouyPostRes{}, LanzouyPostRes2{}, errors.New(info[1])
+			}
+			return LanzouyPostRes{}, LanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
+		}
+		return LanzouyPostRes{}, filedata, nil
 	}
 	var filedata = LanzouyPostRes{}
 	err = json.Unmarshal(bodycontent, &filedata)
@@ -104,11 +128,11 @@ func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, fil
 		re := regexp.MustCompile(`"info"[ ]*:"([^"]*)"`)
 		info := re.FindStringSubmatch(string(bodycontent))
 		if len(info) > 0 {
-			return LanzouyPostRes{}, errors.New(info[1])
+			return LanzouyPostRes{}, LanzouyPostRes2{}, errors.New(info[1])
 		}
-		return LanzouyPostRes{}, fmt.Errorf("json解析错误:%w", err)
+		return LanzouyPostRes{}, LanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
 	}
-	return filedata, nil
+	return filedata, LanzouyPostRes2{}, nil
 }
 
 // 对Unicode进行转码
@@ -278,7 +302,7 @@ func accessFilePage2(filePage2Url string) (string, error) {
 }
 
 func mathcVariables(content string) (map[string]string, error) {
-	re := regexp2.MustCompile(`(?<![\w.])([a-zA-Z0-9_]+)[ ]*=[ ]*[']?([a-zA-Z0-9]+)[']?(?![\w.]+)`, 0)
+	re := regexp2.MustCompile(`(?<![\w.])([a-zA-Z0-9_]+)[ ]*=[ ]*[']?([a-zA-Z0-9_]+)[']?(?![\w.]+)`, 0)
 	rematch, err := re.FindStringMatch(content)
 	if err != nil {
 		return nil, err
@@ -318,6 +342,17 @@ func matchPostParame(content string) (parame url.Values, err error) {
 }
 
 func getPostField(content string) (urlpath string, parame url.Values, err error) {
+	urlpath, parame, err = getPostField1(content)
+	if err != nil {
+		urlpath, parame, err = getPostField2(content)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	return urlpath, parame, nil
+}
+
+func getPostField1(content string) (urlpath string, parame url.Values, err error) {
 	variables, err := mathcVariables(content)
 	if err != nil {
 		return "", nil, err
@@ -344,6 +379,37 @@ func getPostField(content string) (urlpath string, parame url.Values, err error)
 	}
 	urlpath = rematch.GroupByNumber(1).String()
 	//fmt.Println(urlpath, parame.Encode())
+	return urlpath, parame, nil
+}
+
+// 情况2，第二种网页结构
+func getPostField2(content string) (urlpath string, parame url.Values, err error) {
+	re, err := regexp2.Compile(`data[\s]*:[\s]*['"]([a-zA-Z0-9_&=]+)['"]\+pwd`, 0)
+	if err != nil {
+		return "", nil, err
+	}
+	rematch, err := re.FindStringMatch(content)
+	if err != nil {
+		return "", nil, err
+	}
+	if rematch == nil {
+		return "", nil, errors.New("匹配网页结构错误")
+	}
+	//解析query字符串 为url.Values
+	parame, err = url.ParseQuery(rematch.GroupByNumber(1).String())
+	if err != nil {
+		return "", nil, err
+	}
+	re = regexp2.MustCompile(`url[ ]*:[ ]*'([^']+)'`, 0)
+	rematch, err = re.FindStringMatch(content)
+	if err != nil {
+		return "", nil, err
+	}
+	if rematch == nil {
+		return "", nil, errors.New("匹配网页结构错误")
+	}
+	urlpath = rematch.GroupByNumber(1).String()
+	//fmt.Println(urlpath, parame.Encode()) //
 	return urlpath, parame, nil
 }
 

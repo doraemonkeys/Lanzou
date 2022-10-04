@@ -9,6 +9,17 @@ type FileDirectUrl struct {
 	//Inf int    `json:"inf"`
 }
 
+var IsSingleFile bool = false
+
+//单文件post返回的json
+type LanzouyPostRes2 struct {
+	//Zt int `json:"zt"`
+	Dom string `json:"dom"`
+	URL string `json:"url"`
+	Inf string `json:"inf"`
+}
+
+//文件夹post返回的json
 type LanzouyPostRes struct {
 	//Zt   int    `json:"zt"`
 	Info string `json:"info"`

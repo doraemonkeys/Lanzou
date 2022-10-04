@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-// filename为文件存储的路径(可省略)和文件名,记得校验md5
+// Download可用于下载未重定向的原始蓝奏云直链,filename为文件存储的路径(可省略)+文件名
 func Download(url string, filename string) error {
 	request, err := http.NewRequest("GET", url, nil)
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36 Edg/104.0.1293.70")
