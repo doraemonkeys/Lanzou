@@ -255,7 +255,7 @@ func matchFilePageData(content string) (url.Values, string, error) {
 
 	for match != nil {
 		//从html中寻找可变参数的值
-		re2 := regexp2.MustCompile(match.GroupByNumber(2).String()+`[ ]*=[ ]*'([^']*)'`, 0)
+		re2 := regexp2.MustCompile(`(?<!\w)`+match.GroupByNumber(2).String()+`[ ]*=[ ]*'([^']*)'`, 0)
 		match2, err := re2.FindStringMatch(content)
 		if err != nil {
 			return nil, "", err
