@@ -19,12 +19,14 @@ import (
 )
 
 func main() {
-	durl, err := lanzou.GetDownloadUrl("https://XXXXX", "pwd", "filename")
+	file, err := lanzou.GetDownloadUrl("https://XXXXX", "pwd", "desiredFileName")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	lanzou.Download(durl, "./filename")
+    fmt.Println(file.Name)
+	fmt.Println(file.DirectUrl)
+	lanzou.Download(file.DirectUrl, "./"+file.Name)
 }
 ```
 
