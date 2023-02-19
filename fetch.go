@@ -15,60 +15,83 @@ import (
 )
 
 // 从蓝奏云获取指定文件的下载直链,若链接为文件夹,则filename必填，否则不知道下载哪个文件
-func GetDownloadUrl(homeUrl string, pwd string, filename string) (string, error) {
-	content, err := accessHomepage(homeUrl)
+func GetDownloadUrl(homeUrl string, pwd string, wantFilename string) (file LFile, err error) {
+	content, fileName_web, err := accessHomepage(homeUrl)
 	if err != nil {
-		return "", err
+		return LFile{}, err
 	}
-	urlpath, parame, err := getPostField(content)
-	if err != nil {
-		return "", err
+	var (
+		IsSingleFile             bool = false
+		IsSingleFileDownLoadPage bool = false
+	)
+	if fileName_web != "" {
+		IsSingleFileDownLoadPage = true
 	}
-	if parame.Has("pwd") {
-		parame.Set("pwd", pwd)
-		IsSingleFile = false
-	} else if parame.Has("p") {
-		parame.Set("p", pwd)
-		IsSingleFile = true
+	var (
+		filedata_folder LanzouyPostRes
+		filedata_file   LanzouyPostRes2
+	)
+
+	if !IsSingleFileDownLoadPage {
+		urlpath, parame, _, err := getPostField(content)
+		if err != nil {
+			return LFile{}, err
+		}
+		if parame.Has("pwd") {
+			parame.Set("pwd", pwd)
+			IsSingleFile = false
+		} else if parame.Has("p") {
+			parame.Set("p", pwd)
+			IsSingleFile = true
+		}
+		postUrl := homeUrl[:strings.LastIndexByte(homeUrl, '/')] + urlpath
+		filedata_folder, filedata_file, err = postPwdToGetJsonData(homeUrl, postUrl, parame, wantFilename, IsSingleFile)
+		if err != nil {
+			return LFile{}, err
+		}
 	}
-	postUrl := homeUrl[:strings.LastIndexByte(homeUrl, '/')] + urlpath
-	filedata_folder, filedata_file, err := postPwdToGetJsonData(homeUrl, postUrl, parame, filename)
-	if err != nil {
-		return "", err
-	}
+
 	endUrl := ""
 	if IsSingleFile {
 		endUrl = filedata_file.Dom + "/file/" + filedata_file.URL
+		fileName_web = filedata_file.Inf
 	} else {
-		fileUrl, err := findFile(filedata_folder, filename, homeUrl)
-		if err != nil {
-			return "", err
+		var fileUrl string
+		if IsSingleFileDownLoadPage {
+			fileUrl = homeUrl
+		} else {
+			fileUrl, err = findFile(filedata_folder, wantFilename, homeUrl)
+			if err != nil {
+				return LFile{}, err
+			}
+			fileName_web = wantFilename
 		}
 		fileSrc, err := accessFilePageToGetFileSrc(fileUrl)
 		if err != nil {
-			return "", err
+			return LFile{}, err
 		}
 		filePage2Url := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + fileSrc
 		content, err = accessFilePage2(filePage2Url)
 		if err != nil {
-			return "", err
+			return LFile{}, err
 		}
 		parames, urlpath2, err := matchFilePageData(content)
 		if err != nil {
-			return "", err
+			return LFile{}, err
 		}
 		postUrl2 := fileUrl[:strings.LastIndexByte(fileUrl, '/')] + urlpath2
 		endUrl, err = getDirectURL(postUrl2, filePage2Url, parames)
 		if err != nil {
-			return "", err
+			return LFile{}, err
 		}
 	}
 	//尝试获取重定向后的url
 	endUrl2, err := getRedirectUrl(endUrl)
 	if err != nil {
-		return endUrl, nil
+		//return endUrl, fileName_web, nil
+		return LFile{endUrl, fileName_web}, nil
 	}
-	return endUrl2, nil
+	return LFile{endUrl2, fileName_web}, nil
 }
 
 // 获取重定向后的url
@@ -88,7 +111,7 @@ func getRedirectUrl(url string) (string, error) {
 	return resp.Request.URL.String(), nil
 }
 
-func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string) (LanzouyPostRes, LanzouyPostRes2, error) {
+func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string, IsSingleFile bool) (LanzouyPostRes, LanzouyPostRes2, error) {
 	data := parame.Encode()
 	request, err := http.NewRequest("POST", postUrl, strings.NewReader(data))
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36")
@@ -341,15 +364,18 @@ func matchPostParame(content string) (parame url.Values, err error) {
 	return parame, nil
 }
 
-func getPostField(content string) (urlpath string, parame url.Values, err error) {
-	urlpath, parame, err = getPostField1(content)
-	if err != nil {
-		urlpath, parame, err = getPostField2(content)
+func getPostField(content string) (urlpath string, parame url.Values, IsSingleFile bool, err error) {
+	IsSingleFile = false
+	urlpath, parame, err1 := getPostField1(content)
+	if err1 != nil {
+		var err2 error
+		urlpath, parame, err2 = getPostField2(content)
 		if err != nil {
-			return "", nil, err
+			return "", nil, false, errors.Join(err1, err2)
 		}
+		IsSingleFile = true
 	}
-	return urlpath, parame, nil
+	return urlpath, parame, IsSingleFile, nil
 }
 
 func getPostField1(content string) (urlpath string, parame url.Values, err error) {
@@ -382,9 +408,9 @@ func getPostField1(content string) (urlpath string, parame url.Values, err error
 	return urlpath, parame, nil
 }
 
-// 情况2，第二种网页结构
+// 情况2，第二种网页结构(单文件)
 func getPostField2(content string) (urlpath string, parame url.Values, err error) {
-	re, err := regexp2.Compile(`data[\s]*:[\s]*['"]([a-zA-Z0-9_&=]+)['"]\+pwd`, 0)
+	re, err := regexp2.Compile(`(?<![//a-z ]+)data[\s]*:[\s]*['"]([a-zA-Z0-9_&=]+)['"]\+pwd`, 0)
 	if err != nil {
 		return "", nil, err
 	}
@@ -413,28 +439,49 @@ func getPostField2(content string) (urlpath string, parame url.Values, err error
 	return urlpath, parame, nil
 }
 
-func accessHomepage(url string) (string, error) {
+// 第二个string是文件名,如果不为空,则此链接是单文件的下载页
+func accessHomepage(url string) (string, string, error) {
 	request, err := http.NewRequest("GET", url, nil)
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36")
 	if err != nil {
-		return "", err
+		return "", "", fmt.Errorf("构造请求失败,err:%w", err)
 	}
 	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("访问url失败,err:%w", err)
+		return "", "", fmt.Errorf("访问url失败,err:%w", err)
 	}
 	defer resp.Body.Close()
 	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取网页内容失败,err:%w", err)
+		return "", "", fmt.Errorf("读取网页内容失败,err:%w", err)
 	}
-	re := regexp2.MustCompile(`<script type="[a-z/_A-Z0-9]+[^" ]+">([\s\S]+?)dataType`, 0)
+
+	var filenameRetrieved string
+	//获取文件或文件夹名称
+	re := regexp2.MustCompile(`(?<![// ])<title>(.*)</title>`, 0)
 	rematch, err := re.FindStringMatch(string(bodycontent))
+	if err == nil && rematch != nil {
+		if rematch.GroupByNumber(1).String() == "" {
+			return "", "", errors.New("来晚啦...文件取消分享了")
+		}
+		filenameRetrieved = rematch.GroupByNumber(1).String()
+	}
+
+	re = regexp2.MustCompile(`src[ ]*=[ ]*"(/fn[^"]{20,})`, 0)
+	rematch, err = re.FindStringMatch(string(bodycontent))
+	if err == nil && rematch != nil {
+		//此链接是单文件的下载页
+		return "", filenameRetrieved, nil
+	}
+
+	// 此链接是文件夹，或单文件但有密码
+	re = regexp2.MustCompile(`<script type="[a-z/_A-Z0-9]+[^" ]+">([\s\S]+?)dataType`, 0)
+	rematch, err = re.FindStringMatch(string(bodycontent))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if rematch == nil {
-		return "", errors.New("匹配网页结构错误")
+		return "", "", errors.New("匹配网页结构错误")
 	}
-	return rematch.Capture.String(), nil
+	return rematch.Capture.String(), "", nil
 }

@@ -9,8 +9,6 @@ type FileDirectUrl struct {
 	//Inf int    `json:"inf"`
 }
 
-var IsSingleFile bool = false
-
 //单文件post返回的json
 type LanzouyPostRes2 struct {
 	//Zt int `json:"zt"`
@@ -34,4 +32,13 @@ type Text struct {
 	//Time string `json:"time"`
 	//Duan    string `json:"duan"`
 	//PIco    int    `json:"p_ico"`
+}
+
+type LFile struct {
+	DirectUrl string
+	//Size        int64
+	Name string
+	//UploadTime  string
+	//Description string
+	//FileType    string
 }
