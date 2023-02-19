@@ -2,7 +2,7 @@ package lanzou
 
 //可能会因为蓝奏云的变化而发生错误
 
-type FileDirectUrl struct {
+type fileDirectUrl struct {
 	//Zt  int    `json:"zt"`
 	Dom string `json:"dom"`
 	URL string `json:"url"`
@@ -10,7 +10,7 @@ type FileDirectUrl struct {
 }
 
 //单文件post返回的json
-type LanzouyPostRes2 struct {
+type lanzouyPostRes2 struct {
 	//Zt int `json:"zt"`
 	Dom string `json:"dom"`
 	URL string `json:"url"`
@@ -18,12 +18,12 @@ type LanzouyPostRes2 struct {
 }
 
 //文件夹post返回的json
-type LanzouyPostRes struct {
+type lanzouyPostRes struct {
 	//Zt   int    `json:"zt"`
 	Info string `json:"info"`
-	Text []Text `json:"text"`
+	Text []text `json:"text"`
 }
-type Text struct {
+type text struct {
 	//Icon    string `json:"icon"`
 	//T       int    `json:"t"`
 	ID      string `json:"id"`

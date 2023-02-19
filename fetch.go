@@ -28,8 +28,8 @@ func GetDownloadUrl(homeUrl string, pwd string, wantFilename string) (file LFile
 		IsSingleFileDownLoadPage = true
 	}
 	var (
-		filedata_folder LanzouyPostRes
-		filedata_file   LanzouyPostRes2
+		filedata_folder lanzouyPostRes
+		filedata_file   lanzouyPostRes2
 	)
 
 	if !IsSingleFileDownLoadPage {
@@ -111,7 +111,7 @@ func getRedirectUrl(url string) (string, error) {
 	return resp.Request.URL.String(), nil
 }
 
-func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string, IsSingleFile bool) (LanzouyPostRes, LanzouyPostRes2, error) {
+func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, filename string, IsSingleFile bool) (lanzouyPostRes, lanzouyPostRes2, error) {
 	data := parame.Encode()
 	request, err := http.NewRequest("POST", postUrl, strings.NewReader(data))
 	request.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36")
@@ -119,43 +119,43 @@ func postPwdToGetJsonData(homeUrl string, postUrl string, parame url.Values, fil
 	request.Header.Set("content-type", `application/x-www-form-urlencoded`)
 	request.Header.Set("accept", `application/json, text/javascript, */*`)
 	if err != nil {
-		return LanzouyPostRes{}, LanzouyPostRes2{}, err
+		return lanzouyPostRes{}, lanzouyPostRes2{}, err
 	}
 	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return LanzouyPostRes{}, LanzouyPostRes2{}, err
+		return lanzouyPostRes{}, lanzouyPostRes2{}, err
 	}
 	defer resp.Body.Close()
 	bodycontent, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return LanzouyPostRes{}, LanzouyPostRes2{}, err
+		return lanzouyPostRes{}, lanzouyPostRes2{}, err
 	}
 	if IsSingleFile {
-		var filedata = LanzouyPostRes2{}
+		var filedata = lanzouyPostRes2{}
 		err = json.Unmarshal(bodycontent, &filedata)
 		if err != nil {
 			bodycontent = unicodeToUtf8(bodycontent)
 			re := regexp.MustCompile(`"inf"[ ]*:"([^"]*)"`)
 			info := re.FindStringSubmatch(string(bodycontent))
 			if len(info) > 0 {
-				return LanzouyPostRes{}, LanzouyPostRes2{}, errors.New(info[1])
+				return lanzouyPostRes{}, lanzouyPostRes2{}, errors.New(info[1])
 			}
-			return LanzouyPostRes{}, LanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
+			return lanzouyPostRes{}, lanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
 		}
-		return LanzouyPostRes{}, filedata, nil
+		return lanzouyPostRes{}, filedata, nil
 	}
-	var filedata = LanzouyPostRes{}
+	var filedata = lanzouyPostRes{}
 	err = json.Unmarshal(bodycontent, &filedata)
 	if err != nil {
 		bodycontent = unicodeToUtf8(bodycontent)
 		re := regexp.MustCompile(`"info"[ ]*:"([^"]*)"`)
 		info := re.FindStringSubmatch(string(bodycontent))
 		if len(info) > 0 {
-			return LanzouyPostRes{}, LanzouyPostRes2{}, errors.New(info[1])
+			return lanzouyPostRes{}, lanzouyPostRes2{}, errors.New(info[1])
 		}
-		return LanzouyPostRes{}, LanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
+		return lanzouyPostRes{}, lanzouyPostRes2{}, fmt.Errorf("json解析错误:%w", err)
 	}
-	return filedata, LanzouyPostRes2{}, nil
+	return filedata, lanzouyPostRes2{}, nil
 }
 
 // 对Unicode进行转码
@@ -167,7 +167,7 @@ func unicodeToUtf8(str []byte) []byte {
 	})
 }
 
-func findFile(filedata LanzouyPostRes, filename string, homeUrl string) (string, error) {
+func findFile(filedata lanzouyPostRes, filename string, homeUrl string) (string, error) {
 	var fileID string
 	ok := false
 	for _, v := range filedata.Text {
@@ -228,7 +228,7 @@ func getDirectURL(postUrl string, referer string, parames url.Values) (string, e
 	if err != nil {
 		return "", err
 	}
-	var urlInfo FileDirectUrl
+	var urlInfo fileDirectUrl
 	err = json.Unmarshal(bodycontent, &urlInfo)
 	if err != nil {
 		return "", fmt.Errorf("json解析错误:%w", err)
