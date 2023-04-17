@@ -471,6 +471,8 @@ func accessHomepage(url string) (string, string, error) {
 	rematch, err = re.FindStringMatch(string(bodycontent))
 	if err == nil && rematch != nil {
 		//此链接是单文件的下载页
+		suffix := " - 蓝奏云"
+		filenameRetrieved = strings.TrimSuffix(filenameRetrieved, suffix)
 		return "", filenameRetrieved, nil
 	}
 
