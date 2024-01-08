@@ -325,7 +325,7 @@ func accessFilePage2(filePage2Url string) (string, error) {
 }
 
 func mathcVariables(content string) (map[string]string, error) {
-	re := regexp2.MustCompile(`(?<![\w.])([a-zA-Z0-9_]+)[ ]*=[ ]*[']?([a-zA-Z0-9_]+)[']?(?![\w.]+)`, 0)
+	re := regexp2.MustCompile(`(?<![\w.])([a-zA-Z0-9_]+)[\s]*=[\s]*(['].+?[']|[a-zA-Z0-9_]+)(?![\w.]+)`, 0)
 	rematch, err := re.FindStringMatch(content)
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func mathcVariables(content string) (map[string]string, error) {
 	}
 	var variables = make(map[string]string, 10)
 	for rematch != nil {
-		variables[rematch.GroupByNumber(1).String()] = rematch.GroupByNumber(2).String()
+		variables[rematch.GroupByNumber(1).String()] = strings.Trim(rematch.GroupByNumber(2).String(), "'")
 		rematch, err = re.FindNextMatch(rematch)
 		if err != nil {
 			return nil, err
@@ -379,14 +379,17 @@ func getPostField(content string) (urlpath string, parame url.Values, IsSingleFi
 }
 
 func getPostField1(content string) (urlpath string, parame url.Values, err error) {
+	content = filterComment(content)
 	variables, err := mathcVariables(content)
 	if err != nil {
 		return "", nil, err
 	}
+	// fmt.Println(variables)
 	parame, err = matchPostParame(content)
 	if err != nil {
 		return "", nil, err
 	}
+	// fmt.Println(parame)
 	for k, v := range variables {
 		for k1, v1 := range parame {
 			if k == v1[0] {
@@ -476,14 +479,40 @@ func accessHomepage(url string) (string, string, error) {
 		return "", filenameRetrieved, nil
 	}
 
-	// 此链接是文件夹，或单文件但有密码
+	// 此链接是文件夹，或是单文件但有密码
+
 	re = regexp2.MustCompile(`<script type="[a-z/_A-Z0-9]+[^" ]+">([\s\S]+?)dataType`, 0)
 	rematch, err = re.FindStringMatch(string(bodycontent))
+	if err != nil || rematch == nil {
+		return "", "", errors.New("匹配网页结构错误")
+	}
+	partContent := rematch.Capture.String()
+	if strings.Contains(partContent, "getElementById") {
+		return partContent, "", nil
+	}
+
+	// 匹配函数名
+	re = regexp2.MustCompile(`onclick[\s]*=[\s]*['"]{1}([\w\d_]+)\(\);?['"]{1}`, 0)
+	rematch, err = re.FindStringMatch(string(bodycontent))
+	if err != nil || rematch == nil {
+		return "", "", errors.New("匹配网页结构错误")
+	}
+	var funcName = rematch.GroupByNumber(1).String()
+	// 匹配参数段文本
+	re, err = regexp2.Compile(funcName+`\(\)[\s]*{[\s]*([\s\S]+?)dataType`, 0)
 	if err != nil {
 		return "", "", err
 	}
-	if rematch == nil {
+	rematch, err = re.FindStringMatch(string(bodycontent))
+	if err != nil || rematch == nil {
 		return "", "", errors.New("匹配网页结构错误")
 	}
 	return rematch.Capture.String(), "", nil
+}
+
+// 过滤 //
+func filterComment(content string) string {
+	re := regexp2.MustCompile(`(?<=[\n])[\s]*//.*`, 0)
+	c, _ := re.Replace(content, "", -1, -1)
+	return c
 }

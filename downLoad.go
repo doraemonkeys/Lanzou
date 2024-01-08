@@ -27,9 +27,6 @@ func Download(url string, filename string) error {
 		return err
 	}
 	defer out.Close()
-	//io.Copy() 方法将副本从 src 复制到 dst ，直到 src 达到文件末尾 ( EOF ) 或发生错误，
-	//然后返回复制的字节数和复制时遇到的第一个错误(如果有)。
-	//将响应流和文件流对接起来
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		return err
